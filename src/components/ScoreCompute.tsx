@@ -1,50 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, X, ArrowRight } from "lucide-react";
+import { Shield, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScoreResults } from "@/components/ScoreResults";
-import type { WalletScore, WalletScoreError } from "@/types/wallet";
+import { useComputeScore } from "@/hooks/useCreditScore";
+import { compute_schema } from "@/lib/validator/compute.validator";
 
 export function ScoreCompute() {
 	const [walletAddress, setWalletAddress] = useState("");
-	const [isComputing, setIsComputing] = useState(false);
-	const [showScore, setShowScore] = useState(false);
-	const [score, setScore] = useState<WalletScore | null>(null);
-	const [error, setError] = useState<WalletScoreError | null>(null);
+	const [validationError, setValidationError] = useState<string | null>(null);
+
+	const { mutate, data, error, isPending, isError, isSuccess } =
+		useComputeScore();
 
 	const handleComputeScore = () => {
-		if (!walletAddress.trim()) return;
+		setValidationError(null);
 
-		setIsComputing(true);
-		setError(null);
-		setShowScore(false);
+		const inputValidator = compute_schema.safeParse({
+			wallet_address: walletAddress,
+		});
 
-		setTimeout(() => {
-			const shouldError = Math.random() < 0.1;
+		if (!inputValidator.success) {
+			setValidationError(inputValidator.error.issues[0].message);
+			return;
+		}
 
-			if (shouldError) {
-				setError({
-					message:
-						"Unable to fetch wallet data. Please verify the address and try again.",
-				});
-				setIsComputing(false);
-				return;
-			}
-
-			const mockScore: WalletScore = {
-				final_score: Math.floor(Math.random() * (950 - 300) + 300),
-				tnx_score: Math.floor(Math.random() * (100 - 50) + 50),
-				age_score: Math.floor(Math.random() * (100 - 40) + 40),
-				assets_score: Math.floor(Math.random() * (100 - 30) + 30),
-			};
-
-			setScore(mockScore);
-			setShowScore(true);
-			setIsComputing(false);
-		}, 2000);
+		mutate({ wallet_address: inputValidator.data.wallet_address });
 	};
 
 	return (
@@ -93,17 +77,30 @@ export function ScoreCompute() {
 										<Input
 											placeholder="Enter Solana wallet address..."
 											value={walletAddress}
-											onChange={(e) => setWalletAddress(e.target.value)}
+											onChange={(e) => {
+												setWalletAddress(e.target.value);
+												// Clear errors when user starts typing
+												if (validationError) setValidationError(null);
+											}}
+											onKeyDown={(e) => {
+												if (
+													e.key === "Enter" &&
+													walletAddress.trim() &&
+													!isPending
+												) {
+													handleComputeScore();
+												}
+											}}
 											className="flex-1 h-12 bg-[hsl(228_10%_10%)] border-border/20 focus:border-primary/40 focus:ring-2 focus:ring-primary/20 text-base placeholder:text-muted-foreground/40 transition-smooth"
-											disabled={isComputing}
+											disabled={isPending}
 										/>
 										<Button
 											onClick={handleComputeScore}
-											disabled={!walletAddress.trim() || isComputing}
+											disabled={!walletAddress.trim() || isPending}
 											className="h-12 px-8 gap-2 font-semibold bg-linear-to-r from-primary to-accent hover:opacity-90 transition-smooth shadow-glow-sm border-0"
 											size="lg"
 										>
-											{isComputing ? (
+											{isPending ? (
 												<>
 													<div className="w-4 h-4 border-2 border-primary-foreground/20 border-t-primary-foreground rounded-full animate-spin" />
 													Computing
@@ -125,22 +122,16 @@ export function ScoreCompute() {
 							</div>
 						</div>
 
-						{error && (
+						{(validationError || (isError && error)) && (
 							<div className="max-w-2xl mx-auto mt-4 animate-scale-in">
 								<Alert
 									variant="destructive"
 									className="relative border-destructive/30 bg-destructive/10 backdrop-blur-sm"
 								>
 									<AlertDescription className="flex items-center justify-between gap-4">
-										<span className="text-sm">{error.message}</span>
-										<Button
-											variant="ghost"
-											size="icon"
-											className="h-7 w-7 shrink-0 hover:bg-destructive/20"
-											onClick={() => setError(null)}
-										>
-											<X className="h-4 w-4" />
-										</Button>
+										<span className="text-sm">
+											{validationError || error?.message}
+										</span>
 									</AlertDescription>
 								</Alert>
 							</div>
@@ -149,7 +140,7 @@ export function ScoreCompute() {
 				</div>
 			</section>
 
-			{showScore && score && <ScoreResults score={score} />}
+			{isSuccess && data && <ScoreResults score={data.data.score} />}
 		</>
 	);
 }

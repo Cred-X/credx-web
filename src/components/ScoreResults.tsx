@@ -14,8 +14,8 @@ interface ScoreResultsProps {
 }
 
 const getScoreLabel = (score: number) => {
-	if (score >= 750) return "Excellent";
-	if (score >= 500) return "Good";
+	if (score >= 75) return "Excellent";
+	if (score >= 50) return "Good";
 	return "Fair";
 };
 
@@ -37,7 +37,7 @@ export function ScoreResults({ score }: ScoreResultsProps) {
 					<CardContent className="flex justify-center pb-12 relative">
 						<CircularProgress
 							score={score.final_score}
-							maxScore={1000}
+							maxScore={100}
 							size={220}
 						/>
 					</CardContent>
